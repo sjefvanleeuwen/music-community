@@ -1,1 +1,32 @@
-<html><head><title>Music Community</title></head><body><h1>Music Community API</h1><p>Visit <a href="/api-docs">API Documentation</a></p></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Music Community</title>
+  <meta name="description" content="A platform for musicians to share, collaborate, and grow together">
+  
+  <!-- Content Security Policy - Allow inline scripts but not eval -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="/styles/global.css">
+  
+  <!-- Application Scripts - load captcha first -->
+  <script src="/js/captcha.js"></script>
+  <script src="/js/app.js"></script>
+  
+  <!-- Favicon -->
+  <link rel="icon" href="/assets/favicon.ico" type="image/x-icon">
+</head>
+<body>
+  <!-- App will be mounted here by JavaScript -->
+  <div id="app-root"></div>
+  <noscript>
+    <div style="padding: 2rem; text-align: center;">
+      <h1>JavaScript Required</h1>
+      <p>This application requires JavaScript to function. Please enable JavaScript in your browser settings and reload the page.</p>
+    </div>
+  </noscript>
+</body>
+</html>
