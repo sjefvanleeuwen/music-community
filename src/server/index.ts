@@ -13,30 +13,54 @@ import apiRoutes from './api';
 import { errorHandler, notFoundHandler } from './middleware/error-handler';
 import { logger } from './utils/logger';
 import fs from 'fs';
+import { mailService } from './services/mail-service';
+import { spawn } from 'child_process';
+import { getDb } from './db/connection';
 
 // Get port from environment or default to 3000
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
-// Initialize database and start server
-async function bootstrap() {
+// Initialize the server
+async function startServer() {
   try {
     // Initialize database
-    logger.info('Initializing database...');
     await initializeDatabase();
     
     // Run migrations
-    logger.info('Running migrations...');
-    await runMigrations();
+    try {
+      await runMigrations();
+    } catch (migrationError) {
+      logger.error('Database migrations failed', migrationError);
+      process.exit(1);
+    }
     
-    // Seed database
-    logger.info('Seeding database...');
-    await seedDatabase();
+    // Seed database with initial data
+    try {
+      const db = await getDb();
+      await seedDatabase(db);
+    } catch (seedError) {
+      logger.error('Database seeding failed', seedError);
+      // Continue starting the server even if seeding fails
+    }
+    
+    // Check if we're in development mode
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    
+    if (isDevelopment) {
+      await startMailHog();
+    }
     
     // Create Express app
     const app = express();
     
     // Apply middleware
-    app.use(helmet()); // Security headers
+    app.use(helmet({
+      contentSecurityPolicy: {
+        directives: {
+          scriptSrc: ["'self'", "'unsafe-inline'"]
+        }
+      }
+    })); // Security headers with adjusted CSP
     app.use(cors()); // CORS support
     app.use(compression()); // Compression
     app.use(express.json()); // Parse JSON bodies
@@ -85,10 +109,24 @@ async function bootstrap() {
     app.use(notFoundHandler);
     app.use(errorHandler);
     
+    // Test email sending
+    if (isDevelopment) {
+      try {
+        await mailService.sendTestEmail('test@example.com');
+        logger.info('Test email sent successfully. Check MailHog at http://localhost:8025');
+      } catch (error) {
+        logger.error('Failed to send test email:', error);
+      }
+    }
+    
     // Start server
     app.listen(PORT, () => {
       logger.info(`Server running on port ${PORT}`);
       logger.info(`API Documentation available at http://localhost:${PORT}/api-docs`);
+      
+      if (isDevelopment) {
+        logger.info(`MailHog web interface available at http://localhost:8025`);
+      }
     });
   } catch (error) {
     logger.error('Failed to start server', error);
@@ -96,5 +134,53 @@ async function bootstrap() {
   }
 }
 
+/**
+ * Start MailHog if in development mode
+ */
+async function startMailHog() {
+  const isWindows = process.platform === 'win32';
+  const mailhogDir = path.join(process.cwd(), 'tools', 'mailhog');
+  const executable = path.join(mailhogDir, isWindows ? 'MailHog.exe' : 'MailHog');
+  
+  if (!fs.existsSync(executable)) {
+    logger.warn(`MailHog executable not found at ${executable}`);
+    logger.info('Running setup script to download MailHog...');
+    
+    try {
+      const setupScript = path.join(process.cwd(), 'scripts', 'setup-mailhog.js');
+      if (fs.existsSync(setupScript)) {
+        const { execSync } = require('child_process');
+        execSync(`node ${setupScript}`, { stdio: 'inherit' });
+        logger.info('MailHog setup completed.');
+      } else {
+        logger.error(`MailHog setup script not found at ${setupScript}`);
+        return;
+      }
+    } catch (error) {
+      logger.error('Failed to setup MailHog:', error);
+      return;
+    }
+  }
+  
+  // Start MailHog
+  try {
+    logger.info('Starting MailHog...');
+    const mailhog = spawn(executable, [], {
+      detached: true,
+      stdio: 'ignore'
+    });
+    
+    // Don't wait for the child process
+    mailhog.unref();
+    
+    // Give MailHog a moment to start
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    logger.info('MailHog started successfully.');
+  } catch (error) {
+    logger.error('Failed to start MailHog:', error);
+  }
+}
+
 // Start the server
-bootstrap();
+startServer();

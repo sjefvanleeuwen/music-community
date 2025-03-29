@@ -97,6 +97,12 @@ export class RegisterForm extends LitElement {
     this.errorMessage = '';
     
     try {
+      // Log registration attempt for debugging
+      console.log('Registration attempt:', {
+        username: this.username,
+        email: this.email
+      });
+      
       const result = await authService.register({
         username: this.username,
         email: this.email,
@@ -104,18 +110,29 @@ export class RegisterForm extends LitElement {
         display_name: this.displayName || this.username
       });
       
-      // Store token and user data
-      store.dispatch({
-        type: 'AUTH_LOGIN',
-        payload: {
-          token: result.token,
-          user: result.user
-        }
-      });
+      console.log('Registration response:', result);
       
-      // Navigate to home page after successful registration
-      router.navigate('/');
+      // Check if registration was successful and we have userId
+      if (result && result.userId) {
+        console.log('Registration successful, redirecting to verification page');
+        
+        // First store the verification data in session storage for retrieval if redirect fails
+        sessionStorage.setItem('pendingVerification', JSON.stringify({
+          userId: result.userId,
+          email: this.email,
+          timestamp: Date.now()
+        }));
+        
+        // Then redirect to verification page
+        setTimeout(() => {
+          router.navigate(`/verify-code?userId=${result.userId}&email=${encodeURIComponent(this.email)}`);
+        }, 100);
+      } else {
+        console.error('Registration failed - missing userId in response');
+        throw new Error('Registration failed. Please try again.');
+      }
     } catch (error: any) {
+      console.error('Registration error:', error);
       this.errorMessage = error.message || 'Registration failed. Please try again.';
     } finally {
       this.isLoading = false;

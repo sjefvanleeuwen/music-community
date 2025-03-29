@@ -1,6 +1,7 @@
 import { BaseModel } from './base-model';
 import { hashPassword, comparePassword } from '../utils/auth';
 import { logger } from '../utils/logger';
+import bcrypt from 'bcrypt';
 
 export interface User {
   id: number;
@@ -25,10 +26,11 @@ export class UserModel extends BaseModel<User> {
    */
   async findByUsername(username: string): Promise<User | null> {
     try {
-      const users = await this.findBy('username', username);
-      return users.length > 0 ? users[0] : null;
+      const db = await this.getDb();
+      const user = await db.get('SELECT * FROM users WHERE username = ?', [username]);
+      return user || null;
     } catch (error) {
-      logger.error('Error finding user by username', error);
+      logger.error(`Error finding user by username ${username}:`, error);
       throw error;
     }
   }
@@ -38,40 +40,101 @@ export class UserModel extends BaseModel<User> {
    */
   async findByEmail(email: string): Promise<User | null> {
     try {
-      const users = await this.findBy('email', email);
-      return users.length > 0 ? users[0] : null;
+      const db = await this.getDb();
+      const user = await db.get('SELECT * FROM users WHERE email = ?', [email]);
+      return user || null;
     } catch (error) {
-      logger.error('Error finding user by email', error);
+      logger.error(`Error finding user by email ${email}:`, error);
       throw error;
     }
   }
   
   /**
-   * Create a new user with hashed password
+   * Find a user by email verification token
+   */
+  async findByEmailVerificationToken(token: string): Promise<any> {
+    const db = await this.getDb();
+    
+    try {
+      return await db.get(`SELECT * FROM users WHERE email_verification_token = ?`, [token]);
+    } catch (error) {
+      logger.error('Error finding user by email verification token', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Find a user by password reset token
+   */
+  async findByPasswordResetToken(token: string): Promise<any> {
+    const db = await this.getDb();
+    
+    try {
+      return await db.get(`SELECT * FROM users WHERE password_reset_token = ?`, [token]);
+    } catch (error) {
+      logger.error('Error finding user by password reset token', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Find a user by verification code
+   */
+  async findByVerificationCode(code: string): Promise<any> {
+    const db = await this.getDb();
+    
+    try {
+      return await db.get(`SELECT * FROM users WHERE verification_code = ?`, [code]);
+    } catch (error) {
+      logger.error('Error finding user by verification code', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Create a new user
    */
   async createUser(userData: {
     username: string;
     email: string;
     password: string;
-    display_name?: string;
-    bio?: string;
-    profile_image?: string;
+    display_name: string;
+    verification_code: string;
+    verification_code_expiry: string;
+    status: string;
   }): Promise<number> {
+    const db = await this.getDb();
+    
     try {
-      const passwordHash = await hashPassword(userData.password);
+      // Hash the password before storing
+      const hashedPassword = await bcrypt.hash(userData.password, 10);
       
-      const data = {
-        username: userData.username,
-        email: userData.email,
-        password_hash: passwordHash,
-        display_name: userData.display_name || null,
-        bio: userData.bio || null,
-        profile_image: userData.profile_image || null
-      };
+      // Insert user data into database
+      const result = await db.run(`
+        INSERT INTO users (
+          username, 
+          email, 
+          password, 
+          display_name, 
+          verification_code, 
+          verification_code_expiry, 
+          status,
+          created_at,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+      `, [
+        userData.username,
+        userData.email,
+        hashedPassword,
+        userData.display_name,
+        userData.verification_code,
+        userData.verification_code_expiry,
+        userData.status
+      ]);
       
-      return await this.create(data);
+      return result.lastID;
     } catch (error) {
-      logger.error('Error creating user', error);
+      logger.error(`Error creating user: ${error.message}`);
       throw error;
     }
   }
@@ -114,6 +177,33 @@ export class UserModel extends BaseModel<User> {
       return user;
     } catch (error) {
       logger.error('Error authenticating user', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Verify a user's credentials
+   */
+  async verifyCredentials(username: string, password: string): Promise<any> {
+    try {
+      const user = await this.findByUsername(username);
+      
+      if (!user) {
+        return null;
+      }
+      
+      const passwordMatch = await bcrypt.compare(password, user.password);
+      
+      if (!passwordMatch) {
+        return null;
+      }
+      
+      // Remove sensitive data
+      const { password: _, verification_code: __, verification_code_expiry: ___, ...safeUserData } = user;
+      
+      return safeUserData;
+    } catch (error) {
+      logger.error(`Error verifying credentials for user ${username}:`, error);
       throw error;
     }
   }

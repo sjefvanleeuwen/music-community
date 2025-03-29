@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Debug Panel</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      padding: 20px;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    h1 {
+      color: #5850ec;
+      border-bottom: 2px solid #5850ec;
+      padding-bottom: 10px;
+    }
+    h2 {
+      color: #2d3748;
+      margin-top: 30px;
+    }
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      background-color: #f8f9fa;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 16px;
+    }
+    button {
+      background-color: #5850ec;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background-color: #4a3edb;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 4px;
+      background-color: #f0f0f0;
+      overflow: auto;
+      max-height: 400px;
+    }
+    .success {
+      border-left: 4px solid #48bb78;
+    }
+    .error {
+      border-left: 4px solid #e53e3e;
+      background-color: #fff5f5;
+    }
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+    }
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .secondary {
+      background-color: #718096;
+    }
+    .secondary:hover {
+      background-color: #4a5568;
+    }
+    .warning {
+      background-color: #ed8936;
+    }
+    .warning:hover {
+      background-color: #dd6b20;
+    }
+  </style>
+</head>
+<body>
+  <h1>Music Community Debug Panel</h1>
+  
+  <div class="card">
+    <h2>Database Status</h2>
+    <button id="check-db">Check Database Status</button>
+    <div id="db-result" class="result"></div>
+  </div>
+  
+  <div class="card">
+    <h2>Test User Creation</h2>
+    <form id="create-user-form">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" required>
+      </div>
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" required>
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required>
+      </div>
+      <button type="submit">Create Test User</button>
+    </form>
+    <div id="user-result" class="result"></div>
+  </div>
+  
+  <div class="card">
+    <h2>Email Testing</h2>
+    <div class="button-group">
+      <button id="check-smtp" class="secondary">Check SMTP Status</button>
+      <button id="open-mail-panel" class="secondary">Open Email Test Panel</button>
+    </div>
+    <div id="smtp-result" class="result"></div>
+  </div>
+
+  <script>
+    // Database status check
+    document.getElementById('check-db').addEventListener('click', async () => {
+      const resultEl = document.getElementById('db-result');
+      resultEl.innerHTML = 'Checking database status...';
+      resultEl.className = 'result';
+      
+      try {
+        const response = await fetch('/api/dev/db-status');
+        const data = await response.json();
+        
+        resultEl.className = 'result success';
+        resultEl.innerHTML = `
+          <p><strong>Status:</strong> ${data.status}</p>
+          <p><strong>User Count:</strong> ${data.userCount}</p>
+          <p><strong>Tables:</strong> ${data.tables.join(', ')}</p>
+          <p><strong>Users Schema:</strong></p>
+          <pre>${JSON.stringify(data.usersSchema, null, 2)}</pre>
+          <p><strong>Database Info:</strong></p>
+          <pre>${JSON.stringify(data.databaseInfo, null, 2)}</pre>
+        `;
+      } catch (error) {
+        resultEl.className = 'result error';
+        resultEl.innerHTML = `
+          <p><strong>Error:</strong> ${error.message}</p>
+        `;
+      }
+    });
+    
+    // Test user creation
+    document.getElementById('create-user-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const resultEl = document.getElementById('user-result');
+      resultEl.innerHTML = 'Creating test user...';
+      resultEl.className = 'result';
+      
+      const formData = {
+        username: document.getElementById('username').value,
+        email: document.getElementById('email').value,
+        password: document.getElementById('password').value
+      };
+      
+      try {
+        const response = await fetch('/api/dev/test-user-creation', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(formData)
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          resultEl.className = 'result success';
+          resultEl.innerHTML = `
+            <p><strong>Success:</strong> ${data.message}</p>
+            <p><strong>User ID:</strong> ${data.userId}</p>
+            <p><strong>Verification Code:</strong> ${data.verificationCode}</p>
+            <pre>${JSON.stringify(data, null, 2)}</pre>
+          `;
+        } else {
+          resultEl.className = 'result error';
+          resultEl.innerHTML = `
+            <p><strong>Error:</strong> ${data.error}</p>
+            <pre>${JSON.stringify(data, null, 2)}</pre>
+          `;
+        }
+      } catch (error) {
+        resultEl.className = 'result error';
+        resultEl.innerHTML = `
+          <p><strong>Error:</strong> ${error.message}</p>
+        `;
+      }
+    });
+    
+    // SMTP status check
+    document.getElementById('check-smtp').addEventListener('click', async () => {
+      const resultEl = document.getElementById('smtp-result');
+      resultEl.innerHTML = 'Checking SMTP status...';
+      resultEl.className = 'result';
+      
+      try {
+        const response = await fetch('/api/dev/smtp-status');
+        const data = await response.json();
+        
+        if (data.status === 'online') {
+          resultEl.className = 'result success';
+          resultEl.innerHTML = `
+            <p><strong>Status:</strong> ${data.status}</p>
+            <p><strong>Host:</strong> ${data.host}</p>
+            <p><strong>Port:</strong> ${data.port}</p>
+            <p><a href="${data.mailhogUrl}" target="_blank">Open MailHog Interface</a></p>
+          `;
+        } else {
+          resultEl.className = 'result error';
+          resultEl.innerHTML = `
+            <p><strong>Status:</strong> ${data.status}</p>
+            <p><strong>Details:</strong> ${data.details || 'SMTP server is not running'}</p>
+          `;
+        }
+      } catch (error) {
+        resultEl.className = 'result error';
+        resultEl.innerHTML = `
+          <p><strong>Error:</strong> ${error.message}</p>
+        `;
+      }
+    });
+    
+    // Open email test panel
+    document.getElementById('open-mail-panel').addEventListener('click', () => {
+      window.open('/api/dev/mail-test-panel', '_blank');
+    });
+  </script>
+</body>
+</html>

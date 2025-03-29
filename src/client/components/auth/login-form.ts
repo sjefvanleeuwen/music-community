@@ -81,6 +81,13 @@ export class LoginForm extends LitElement {
       // Navigate to home page after successful login
       router.navigate('/');
     } catch (error: any) {
+      // Check if the error is due to unverified account
+      if (error.requiresVerification && error.userId && error.email) {
+        // Redirect to verification page
+        router.navigate(`/verify-code?userId=${error.userId}&email=${encodeURIComponent(error.email)}`);
+        return;
+      }
+      
       this.errorMessage = error.message || 'Login failed. Please check your credentials.';
     } finally {
       this.isLoading = false;

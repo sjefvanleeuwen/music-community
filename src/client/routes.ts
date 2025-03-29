@@ -15,16 +15,8 @@ export const routes = [
     title: 'Register'
   },
   {
-    path: '/profile',
-    component: 'profile-page',
-    authRequired: true,
-    title: 'Your Profile'
+    path: '/verify-code',
+    component: 'verify-code-page',
+    title: 'Verify Your Account'
   },
-  {
-    path: '/upload',
-    component: 'upload-page',
-    authRequired: true,
-    title: 'Upload Music'
-  },
-  // Add other routes as needed
 ];

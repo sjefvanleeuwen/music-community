@@ -6,6 +6,7 @@ import genreRoutes from './genres';
 import albumRoutes from './albums';
 import eventRoutes from './events';
 import blogRoutes from './blog';
+import devRoutes from './dev';
 import { logger } from '../utils/logger';
 
 const router = express.Router();
@@ -67,6 +68,9 @@ router.use('/genres', genreRoutes);
 router.use('/albums', albumRoutes);
 router.use('/events', eventRoutes);
 router.use('/blog', blogRoutes);
+
+// Development routes (only available in development)
+router.use('/dev', devRoutes);
 
 /**
  * @swagger
